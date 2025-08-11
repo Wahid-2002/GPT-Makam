@@ -1,30 +1,26 @@
-from fastapi import FastAPI, File, UploadFile
-import uvicorn
-import librosa
-import numpy as np
+import os
 import pickle
+import joblib
+from fastapi import FastAPI
 
 app = FastAPI()
 
-# Load model
-with open("model.pkl", "rb") as f:
-    model = pickle.load(f)
+MODEL_PATH = "model.pkl"
 
-def extract_features(file_path):
-    y, sr = librosa.load(file_path, sr=22050, mono=True)
-    mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
-    chroma = librosa.feature.chroma_cqt(y=y, sr=sr)
-    features = np.concatenate([mfcc.mean(axis=1), chroma.mean(axis=1)])
-    return features.reshape(1, -1)
+def load_model(path):
+    # Try loading with pickle first
+    try:
+        with open(path, "rb") as f:
+            return pickle.load(f)
+    except pickle.UnpicklingError:
+        # If pickle fails, try joblib
+        return joblib.load(path)
 
-@app.post("/predict")
-async def predict(file: UploadFile = File(...)):
-    file_path = f"temp_{file.filename}"
-    with open(file_path, "wb") as f:
-        f.write(await file.read())
-    features = extract_features(file_path)
-    pred = model.predict(features)[0]
-    return {"maqam": pred}
+if not os.path.exists(MODEL_PATH):
+    raise FileNotFoundError(f"Model file not found: {MODEL_PATH}")
 
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=10000)
+model = load_model(MODEL_PATH)
+
+@app.get("/")
+def home():
+    return {"message": "Model loaded successfully!", "model_type": str(type(model))}
