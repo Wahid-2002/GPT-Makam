@@ -1,0 +1,4 @@
+maqam-classifier/
+  app.py
+  model.pkl
+  requirements.txt
